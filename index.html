@@ -518,10 +518,12 @@ input[type=range]{width:100%; height:46px; accent-color:var(--accent)}
       <div id="segs"></div>
       <div class="row">
         <button class="btn grow" id="btAdd">+ Agregar premio</button>
-        <button class="btn sm" id="btShuffle">Mezclar</button>
+        <button class="btn sm" id="btShuffle">Repartir</button>
       </div>
       <p class="hint">La cantidad es el stock. Al agotarse, el premio sale de la ruleta.
-        Deja <b>∞</b> (vacío) para ilimitado.</p>
+        Deja <b>∞</b> (vacío) para ilimitado.<br>
+        <b>Repartir</b> reordena la rueda para que no queden dos premios de la
+        misma marca pegados (por ejemplo varios "Sigue participando" seguidos).</p>
     </div>
 
     <div class="sec">
@@ -1688,12 +1690,64 @@ $('btAdd').onclick=()=>{
   save(); render(); renderSegs();
   $('segs').lastChild.querySelector('input[type=text]').focus();
 };
-$('btShuffle').onclick=()=>{
-  for(let i=cfg.segments.length-1;i>0;i--){
-    const j=Math.floor(rnd()*(i+1));
-    const t=cfg.segments[i]; cfg.segments[i]=cfg.segments[j]; cfg.segments[j]=t;
+/* Cuenta cuántos gajos vecinos comparten marca. Se recorre en círculo: el
+   último toca al primero, y eso hay que contarlo o el cierre queda feo. */
+function pegados(arr){
+  let c=0;
+  for(let i=0;i<arr.length;i++) if(arr[i].kind===arr[(i+1)%arr.length].kind) c++;
+  return c;
+}
+/* Reparte los premios para que no queden dos de la misma marca juntos (el caso
+   típico: tres "Sigue participando" seguidos). Baraja dentro de cada marca para
+   que el orden cambie, coloca la marca más numerosa primero repartiéndola entre
+   posiciones pares y luego impares —así los repetidos nunca caen pegados— y al
+   final arregla el cierre del círculo probando intercambios. */
+function repartir(){
+  const n=cfg.segments.length;
+  if(n<3) return pegados(cfg.segments);
+
+  const grupos={};
+  cfg.segments.forEach(s=>{ (grupos[s.kind]=grupos[s.kind]||[]).push(s); });
+  Object.keys(grupos).forEach(k=>{
+    const g=grupos[k];
+    for(let i=g.length-1;i>0;i--){
+      const j=Math.floor(rnd()*(i+1));
+      const t=g[i]; g[i]=g[j]; g[j]=t;
+    }
+  });
+  const cola=Object.keys(grupos)
+    .sort((a,b)=>grupos[b].length-grupos[a].length)
+    .reduce((acc,k)=>acc.concat(grupos[k]),[]);
+
+  const out=new Array(n);
+  let i=0;
+  for(let p=0;p<n;p+=2) out[p]=cola[i++];
+  for(let p=1;p<n;p+=2) out[p]=cola[i++];
+
+  let c=pegados(out), vueltas=0;
+  while(c>0 && vueltas++<n*2){
+    let mejoro=false;
+    for(let a=0;a<n && !mejoro;a++){
+      for(let b=a+1;b<n;b++){
+        const A=out[a], B=out[b];
+        out[a]=B; out[b]=A;
+        const c2=pegados(out);
+        if(c2<c){ c=c2; mejoro=true; break; }
+        out[a]=A; out[b]=B;
+      }
+    }
+    if(!mejoro) break;
   }
-  save(); render(); renderSegs(); toast('Premios mezclados');
+
+  cfg.segments=out;
+  if(cfg.pal==='marca') recolor();
+  return c;
+}
+$('btShuffle').onclick=()=>{
+  const c=repartir();
+  save(); render(); renderSegs();
+  toast(c===0 ? 'Repartidos: ninguno repetido junto'
+              : 'Repartidos, pero quedan '+c+' pegados (sobran de una marca)');
 };
 /* logos */
 document.querySelectorAll('[data-up]').forEach(b=>{
