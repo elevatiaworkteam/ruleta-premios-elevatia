@@ -584,6 +584,12 @@ input[type=range]{width:100%; height:46px; accent-color:var(--accent)}
       <div class="tog"><input type="checkbox" id="kRemove"><span>Descontar stock al ganar</span></div>
       <div class="tog"><input type="checkbox" id="kQty"><span>Mostrar cantidad en la ruleta</span></div>
       <div class="tog"><input type="checkbox" id="kHint"><span>Mostrar "toca para girar"</span></div>
+      <div class="tog"><input type="checkbox" id="kNoRep"><span>No repetir el mismo premio seguido</span></div>
+      <label class="f"><span>Giros sin ticket dorado después de uno</span>
+        <input type="number" id="fOro" min="0" max="20" step="1"></label>
+      <p class="hint">Con <b>0</b> la ruleta es puro azar y pueden salir dos dorados
+        seguidos (pasa el 2,4% de las veces). Con <b>3</b> se garantiza que entre
+        dos dorados haya al menos 3 giros de por medio.</p>
     </div>
 
     <div class="sec">
@@ -743,6 +749,8 @@ function baseConfig(brandKey){
     showQty:false, showHint:true, logoChip:false,
     /* captura de datos del ganador */
     askData:true,
+    /* separacion de premios: giros sin dorado tras un dorado, y no repetir */
+    oroEspera:3, noRepetir:true,
     claimUrl:'https://n8n.elevatia.do/webhook/ruleta-premio',
     claimToken:'rlt_7Qk2mVx9',
     waQr:QR_WA,
@@ -786,8 +794,28 @@ function save(){
   catch(e){ toast('No se pudo guardar (memoria llena)'); }
 }
 
-/* premios que realmente entran al giro */
+/* premios que realmente entran al giro (los que se dibujan) */
 function live(){ return cfg.segments.filter(s=> s.stock===null || s.stock>0); }
+
+/* Separacion de premios. Dos dorados seguidos son perfectamente posibles por
+   azar (15,4% x 15,4% = 2,4% por par de giros), pero en un evento queda mal.
+   Estos filtros eligen el ganador de un subconjunto SIN tocar la rueda dibujada:
+   la geometria sigue saliendo de live(), asi que la flecha cae siempre sobre el
+   premio anunciado. Si el filtro dejara la lista vacia se ignora, para no
+   bloquear la ruleta cuando ya solo quedan dorados. */
+let esperaOro = 0, ultimoGanador = null;
+function elegibles(segs){
+  let out = segs;
+  if(esperaOro > 0){
+    const sinOro = out.filter(s=> s.kind!=='oro');
+    if(sinOro.length) out = sinOro;
+  }
+  if(cfg.noRepetir && ultimoGanador && out.length > 1){
+    const sinUltimo = out.filter(s=> s!==ultimoGanador);
+    if(sinUltimo.length) out = sinUltimo;
+  }
+  return out;
+}
 
 /* ================= dom ================= */
 const $ = id => document.getElementById(id);
@@ -1176,7 +1204,12 @@ function spin(){
   $('spin').disabled=true;
   $('tapHint').style.opacity='0';
 
-  const idx=pick(segs), n=segs.length, step=Math.PI*2/n;
+  /* la rueda dibujada es segs; el ganador se elige entre los elegibles y
+     despues se busca su posicion real para que la flecha caiga encima */
+  const elig = elegibles(segs);
+  const ganador = elig[pick(elig)];
+  const idx = segs.indexOf(ganador);
+  const n=segs.length, step=Math.PI*2/n;
   const jitter=(rnd()-.5)*step*0.62;
   const desired=-(idx*step + step/2) + jitter;
 
@@ -1206,7 +1239,12 @@ function spin(){
       applyRotation();
       spinning=false;
       $('spin').disabled=false;
-      showWinner(segs[idx]);
+      /* contador de espera: se recarga al salir un dorado y baja en los demas */
+      esperaOro = (ganador.kind==='oro')
+        ? Math.max(0, parseInt(cfg.oroEspera,10)||0)
+        : Math.max(0, esperaOro-1);
+      ultimoGanador = ganador;
+      showWinner(ganador);
     }
   }
   requestAnimationFrame(frame);
@@ -1552,6 +1590,8 @@ function syncPanel(){
   $('kSound').checked=!!cfg.sound; $('kConf').checked=!!cfg.confetti;
   $('kRemove').checked=!!cfg.removeOnWin; $('kQty').checked=!!cfg.showQty;
   $('kHint').checked=!!cfg.showHint;  $('kChip').checked=!!cfg.logoChip;
+  $('kNoRep').checked=!!cfg.noRepetir;
+  $('fOro').value = (cfg.oroEspera===undefined||cfg.oroEspera===null) ? 3 : cfg.oroEspera;
   $('kAsk').checked=!!cfg.askData;
   $('fUrl').value=cfg.claimUrl||''; $('fTok').value=cfg.claimToken||'';
   renderQState();
@@ -1682,7 +1722,8 @@ $('rHub').oninput=()=>{ cfg.hubSize=+$('rHub').value; $('vHub').textContent=cfg.
 $('rDur').oninput=()=>{ cfg.dur=+$('rDur').value; $('vDur').textContent=cfg.dur; save(); };
 /* switches */
 [['kSound','sound'],['kConf','confetti'],['kRemove','removeOnWin'],
- ['kQty','showQty'],['kHint','showHint'],['kChip','logoChip']].forEach(([id,k])=>{
+ ['kQty','showQty'],['kHint','showHint'],['kChip','logoChip'],
+ ['kNoRep','noRepetir']].forEach(([id,k])=>{
   $(id).onchange=()=>{ cfg[k]=$(id).checked; save(); applyTheme(); render(); };
 });
 /* premios */
@@ -1808,6 +1849,11 @@ $('btClrHist').onclick=()=>{
 $('kAsk').onchange=()=>{ cfg.askData=$('kAsk').checked; save(); };
 $('fUrl').oninput=()=>{ cfg.claimUrl=$('fUrl').value.trim(); save(); };
 $('fTok').oninput=()=>{ cfg.claimToken=$('fTok').value.trim(); save(); };
+$('fOro').oninput=()=>{
+  const v=parseInt($('fOro').value,10);
+  cfg.oroEspera = isNaN(v)? 0 : Math.max(0, Math.min(20, v));
+  save();
+};
 $('btTest').onclick=testSend;
 $('btFlush').onclick=()=>flushLeads(false);
 $('btReset').onclick=()=>{
