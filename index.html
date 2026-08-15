@@ -520,6 +520,9 @@ input[type=range]{width:100%; height:46px; accent-color:var(--accent)}
         <button class="btn grow" id="btAdd">+ Agregar premio</button>
         <button class="btn sm" id="btShuffle">Repartir</button>
       </div>
+      <div class="row">
+        <button class="btn grow" id="btPremiosEvento">Restaurar los 13 premios del evento</button>
+      </div>
       <p class="hint">La cantidad es el stock. Al agotarse, el premio sale de la ruleta.
         Deja <b>∞</b> (vacío) para ilimitado.<br>
         <b>Repartir</b> reordena la rueda para que no queden dos premios de la
@@ -1743,6 +1746,16 @@ function repartir(){
   if(cfg.pal==='marca') recolor();
   return c;
 }
+/* Devuelve la lista de premios del evento: los 13 con los DOS tickets dorados
+   y ya intercalados (ningún par de la misma marca pegado). Sólo toca los
+   premios: colores, logos, textos, webhook y datos capturados se conservan. */
+$('btPremiosEvento').onclick=()=>{
+  if(!confirm('¿Restaurar los 13 premios del evento?\n\nSe reemplaza la lista de premios actual. Los colores, logos, textos y los datos ya capturados NO se tocan.')) return;
+  cfg.segments = defaultSegments();
+  recolor();
+  save(); render(); renderSegs();
+  toast('Premios del evento restaurados');
+};
 $('btShuffle').onclick=()=>{
   const c=repartir();
   save(); render(); renderSegs();
