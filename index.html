@@ -521,7 +521,7 @@ input[type=range]{width:100%; height:46px; accent-color:var(--accent)}
         <button class="btn sm" id="btShuffle">Repartir</button>
       </div>
       <div class="row">
-        <button class="btn grow" id="btPremiosEvento">Restaurar los 13 premios del evento</button>
+        <button class="btn grow" id="btPremiosEvento">Restaurar los 17 premios del evento</button>
       </div>
       <p class="hint">La cantidad es el stock. Al agotarse, el premio sale de la ruleta.
         Deja <b>∞</b> (vacío) para ilimitado.<br>
@@ -709,22 +709,28 @@ function kindColor(kind){ return (KINDS[kind]||KINDS.none).color; }
 
 /* Orden pensado, no al azar: se alterna Triple M / ElevatIA, los "sin premio"
    quedan repartidos, jamás hay dos gajos del mismo color pegados, y los dos
-   tickets dorados caen enfrentados (posiciones 0 y 7 de 13) para que el oro
-   se reparta en la rueda en vez de amontonarse a un lado. */
+   tickets dorados caen enfrentados (separados 8 de 17, el maximo posible) para
+   que el oro se reparta en la rueda en vez de amontonarse a un lado.
+   El orden se calculo buscando: cero pares de la misma marca pegados, dorados
+   lo mas opuestos posible y las cuatro libretas bien repartidas. */
 const DEFAULT_PRIZES = [
-  { label:'Ticket dorado Triple M',          kind:'oro'  },
-  { label:'Video profesional para redes',    kind:'tm'   },
-  { label:'Sigue participando',              kind:'none' },
-  { label:'10% descuento servicio IA',       kind:'ia'   },
-  { label:'Auditoría express de tus redes',  kind:'tm'   },
-  { label:'Sigue participando',              kind:'none' },
-  { label:'10% off implementación IA',       kind:'ia'   },
-  { label:'Ticket dorado ElevatIA',          kind:'oro'  },
-  { label:'Consultoría 20 min Triple M',     kind:'tm'   },
-  { label:'Sigue participando',              kind:'none' },
-  { label:'Consultoría 20 min IA',           kind:'ia'   },
-  { label:'10% descuento servicio Triple M', kind:'tm'   },
-  { label:'Sigue participando',              kind:'none' }
+  { label:'Libreta y lapicero',               kind:'tm'    },
+  { label:'Sigue participando',               kind:'none'  },
+  { label:'Ticket dorado ElevatIA',           kind:'oro'   },
+  { label:'Sigue participando',               kind:'none'  },
+  { label:'10% descuento servicio Triple M',  kind:'tm'    },
+  { label:'Libreta y lapicero',               kind:'ia'    },
+  { label:'Sigue participando',               kind:'none'  },
+  { label:'Video profesional para redes',     kind:'tm'    },
+  { label:'Consultoría 20 min IA',            kind:'ia'    },
+  { label:'Libreta y lapicero',               kind:'tm'    },
+  { label:'Ticket dorado Triple M',           kind:'oro'   },
+  { label:'10% off implementación IA',        kind:'ia'    },
+  { label:'Consultoría 20 min Triple M',      kind:'tm'    },
+  { label:'Libreta y lapicero',               kind:'ia'    },
+  { label:'Auditoría express de tus redes',   kind:'tm'    },
+  { label:'Sigue participando',               kind:'none'  },
+  { label:'10% descuento servicio IA',        kind:'ia'    }
 ];
 function defaultSegments(){
   return DEFAULT_PRIZES.map(p=>({
@@ -1036,9 +1042,11 @@ function drawWheel(){
     if('letterSpacing' in ctxW) ctxW.letterSpacing = esOro ? '0.055em' : '0.035em';
 
     const maxLines = step > 0.34 ? 3 : 2;
-    /* el piso no puede ser sólo proporcional: en una rueda chica R*0.036 daba
-       letras de 4 px, ilegibles. Mejor recortar con "…" que dibujar microtexto. */
-    const minPx = Math.max(R*0.055, 9);
+    /* El piso no puede ser sólo proporcional: en una rueda chica R*0.036 daba
+       letras de 4 px, ilegibles. Pero tampoco muy alto: con 17 gajos, palabras
+       largas que no se pueden partir ("IMPLEMENTACIÓN") se recortaban con "…".
+       El 9 absoluto es el que protege las pantallas pequeñas. */
+    const minPx = Math.max(R*0.046, 9);
     const fit = fitText(ctxW, txt, xOut, xIn, step,
                         Math.min(chord*0.72, R*0.132), minPx, maxLines);
     const lh=fit.size*1.12, y0=-(fit.lines.length-1)*lh/2;
@@ -1787,11 +1795,11 @@ function repartir(){
   if(cfg.pal==='marca') recolor();
   return c;
 }
-/* Devuelve la lista de premios del evento: los 13 con los DOS tickets dorados
+/* Devuelve la lista de premios del evento: los 17 con los DOS tickets dorados
    y ya intercalados (ningún par de la misma marca pegado). Sólo toca los
    premios: colores, logos, textos, webhook y datos capturados se conservan. */
 $('btPremiosEvento').onclick=()=>{
-  if(!confirm('¿Restaurar los 13 premios del evento?\n\nSe reemplaza la lista de premios actual. Los colores, logos, textos y los datos ya capturados NO se tocan.')) return;
+  if(!confirm('¿Restaurar los 17 premios del evento?\n\nSe reemplaza la lista de premios actual. Los colores, logos, textos y los datos ya capturados NO se tocan.')) return;
   cfg.segments = defaultSegments();
   recolor();
   save(); render(); renderSegs();
